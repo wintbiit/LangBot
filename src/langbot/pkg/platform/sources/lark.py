@@ -1175,56 +1175,6 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
                             'margin': '0px 0px 0px 0px',
                             'element_id': 'streaming_txt',
                         },
-                        {
-                            'tag': 'markdown',
-                            'content': '',
-                            'text_align': 'left',
-                            'text_size': 'normal',
-                            'margin': '0px 0px 0px 0px',
-                        },
-                        {
-                            'tag': 'column_set',
-                            'horizontal_spacing': '8px',
-                            'horizontal_align': 'left',
-                            'columns': [
-                                {
-                                    'tag': 'column',
-                                    'width': 'weighted',
-                                    'elements': [
-                                        {
-                                            'tag': 'markdown',
-                                            'content': '',
-                                            'text_align': 'left',
-                                            'text_size': 'normal',
-                                            'margin': '0px 0px 0px 0px',
-                                        },
-                                        {
-                                            'tag': 'markdown',
-                                            'content': '',
-                                            'text_align': 'left',
-                                            'text_size': 'normal',
-                                            'margin': '0px 0px 0px 0px',
-                                        },
-                                        {
-                                            'tag': 'markdown',
-                                            'content': '',
-                                            'text_align': 'left',
-                                            'text_size': 'normal',
-                                            'margin': '0px 0px 0px 0px',
-                                        },
-                                    ],
-                                    'padding': '0px 0px 0px 0px',
-                                    'direction': 'vertical',
-                                    'horizontal_spacing': '8px',
-                                    'vertical_spacing': '2px',
-                                    'horizontal_align': 'left',
-                                    'vertical_align': 'top',
-                                    'margin': '0px 0px 0px 0px',
-                                    'weight': 1,
-                                }
-                            ],
-                            'margin': '0px 0px 0px 0px',
-                        },
                         {'tag': 'hr', 'margin': '0px 0px 0px 0px'},
                         {
                             'tag': 'column_set',
@@ -1344,7 +1294,7 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
         card_id = await self.create_card_id(message_id)
         content = {
             'type': 'card',
-            'data': {'card_id': card_id, 'template_variable': {'content': 'Thinking...'}},
+            'data': {'card_id': card_id},
         }  # 当收到消息时发送消息模板，可添加模板变量，详情查看飞书中接口文档
         request: ReplyMessageRequest = (
             ReplyMessageRequest.builder()
