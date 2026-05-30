@@ -1168,20 +1168,6 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
                     'padding': '12px 12px 12px 12px',
                     'elements': [
                         {
-                            'tag': 'div',
-                            'text': {
-                                'tag': 'plain_text',
-                                'content': 'LangBot',
-                                'text_size': 'normal',
-                                'text_align': 'left',
-                                'text_color': 'default',
-                            },
-                            'icon': {
-                                'tag': 'custom_icon',
-                                'img_key': 'img_v3_02p3_05c65d5d-9bad-440a-a2fb-c89571bfd5bg',
-                            },
-                        },
-                        {
                             'tag': 'markdown',
                             'content': '',
                             'text_align': 'left',
