@@ -1148,7 +1148,7 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
         for k in expired:
             del self.reply_to_monitoring_msg[k]
 
-    async def create_card_id(self, message_id):
+    async def create_card_id(self, message_id, initial_content: str = ''):
         try:
             # self.logger.debug('飞书支持stream输出,创建卡片......')
 
@@ -1169,7 +1169,7 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
                     'elements': [
                         {
                             'tag': 'markdown',
-                            'content': '',
+                            'content': initial_content,
                             'text_align': 'left',
                             'text_size': 'normal',
                             'margin': '0px 0px 0px 0px',
@@ -1284,14 +1284,14 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
         except Exception as e:
             raise e
 
-    async def create_message_card(self, message_id, event) -> str:
+    async def create_message_card(self, message_id, event, initial_content: str = '') -> str:
         """
         创建卡片消息。
         使用卡片消息是因为普通消息更新次数有限制，而大模型流式返回结果可能很多而超过限制，而飞书卡片没有这个限制（api免费次数有限）
         """
         # message_id = event.message_chain.message_id
 
-        card_id = await self.create_card_id(message_id)
+        card_id = await self.create_card_id(message_id, initial_content=initial_content)
         content = {
             'type': 'card',
             'data': {'card_id': card_id},

@@ -4,6 +4,7 @@ import uuid
 import typing
 import traceback
 import time
+import inspect
 from datetime import datetime
 
 
@@ -95,6 +96,24 @@ class ChatMessageHandler(handler.MessageHandler):
                 if is_stream:
                     resp_message_id = uuid.uuid4()
                     chunk_count = 0  # Track streaming chunks to reduce excessive logging
+                    create_card_sig = inspect.signature(query.adapter.create_message_card)
+                    if 'initial_content' in create_card_sig.parameters:
+                        await query.adapter.create_message_card(
+                            str(resp_message_id),
+                            query.message_event,
+                            initial_content=':OnIt:',
+                        )
+                    else:
+                        await query.adapter.create_message_card(str(resp_message_id), query.message_event)
+                    is_create_card = True
+                    placeholder_chunk = provider_message.MessageChunk(
+                        role='assistant',
+                        content=':OnIt:',
+                        is_final=False,
+                    )
+                    placeholder_chunk.resp_message_id = str(resp_message_id)
+                    placeholder_chunk.msg_sequence = 0
+                    query.resp_messages.append(placeholder_chunk)
 
                     async for result in runner.run(query):
                         result.resp_message_id = str(resp_message_id)
@@ -102,7 +121,7 @@ class ChatMessageHandler(handler.MessageHandler):
                             query.resp_messages.pop()
                         if query.resp_message_chain:
                             query.resp_message_chain.pop()
-                        # 此时连接外部 AI 服务正常,创建卡片
+                        # Compatibility fallback for adapters that did not create the card before runner execution.
                         if not is_create_card:  # 只有不是第一次才创建卡片
                             await query.adapter.create_message_card(str(resp_message_id), query.message_event)
                             is_create_card = True
@@ -160,6 +179,9 @@ class ChatMessageHandler(handler.MessageHandler):
                     user_notice = query.pipeline_config['output']['misc'].get('failure-hint', 'Request failed.')
                 else:  # hide
                     user_notice = None
+
+                if is_stream and is_create_card and query.resp_messages and user_notice is not None:
+                    query.resp_messages[-1].is_final = True
 
                 yield entities.StageProcessResult(
                     result_type=entities.ResultType.INTERRUPT,
