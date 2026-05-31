@@ -5,6 +5,8 @@ Tests the helper methods that don't require real Dify API calls.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 
@@ -167,3 +169,50 @@ class TestDifyRunnerInit:
 
         assert runner.pipeline_config == pipeline_config
         assert runner.ap == mock_app
+
+
+class TestDifyRunnerTimeout:
+    """Tests for Dify streaming total timeout handling."""
+
+    def _create_runner(self, timeout=None):
+        from unittest.mock import MagicMock
+
+        from langbot.pkg.provider.runners.difysvapi import DifyServiceAPIRunner
+
+        dify_config = {
+            'app-type': 'chat',
+            'api-key': 'test-key',
+            'base-url': 'https://api.dify.ai',
+        }
+        if timeout is not None:
+            dify_config['timeout'] = timeout
+
+        mock_app = MagicMock()
+        pipeline_config = {
+            'ai': {'dify-service-api': dify_config},
+            'output': {'misc': {}},
+        }
+        return DifyServiceAPIRunner(mock_app, pipeline_config)
+
+    def test_request_timeout_defaults_to_120(self):
+        runner = self._create_runner()
+
+        assert runner._request_timeout() == 120.0
+
+    def test_request_timeout_uses_pipeline_config(self):
+        runner = self._create_runner(timeout='45')
+
+        assert runner._request_timeout() == 45.0
+
+    async def test_stream_total_timeout_raises_dify_error(self):
+        from langbot.libs.dify_service_api.v1.errors import DifyAPIError
+
+        runner = self._create_runner(timeout=1)
+
+        async def slow_chunks():
+            await asyncio.sleep(2)
+            yield {'event': 'message', 'answer': 'late'}
+
+        with pytest.raises(DifyAPIError, match='超过 1 秒'):
+            async for _ in runner._with_total_timeout(slow_chunks(), operation='Dify chat'):
+                pass

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import typing
 import json
 import uuid
@@ -38,6 +39,39 @@ class DifyServiceAPIRunner(runner.RequestRunner):
             api_key=api_key,
             base_url=self.pipeline_config['ai']['dify-service-api']['base-url'],
         )
+
+    def _request_timeout(self) -> float:
+        """Return the configured Dify request timeout in seconds."""
+        config = self.pipeline_config['ai'].get('dify-service-api', {})
+        app_type = config.get('app-type')
+        timeout = config.get('timeout')
+        if timeout is None and app_type:
+            typed_config = config.get(app_type)
+            if isinstance(typed_config, dict):
+                timeout = typed_config.get('timeout')
+
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError):
+            timeout = 120.0
+
+        return max(timeout, 1.0)
+
+    async def _with_total_timeout(
+        self,
+        chunks: typing.AsyncGenerator[dict[str, typing.Any], None],
+        *,
+        operation: str,
+    ) -> typing.AsyncGenerator[dict[str, typing.Any], None]:
+        timeout = self._request_timeout()
+        try:
+            async with asyncio.timeout(timeout):
+                async for chunk in chunks:
+                    yield chunk
+        except TimeoutError as exc:
+            raise errors.DifyAPIError(
+                f'{operation} 超过 {timeout:g} 秒未完成，已中止。请缩小诊断范围或稍后重试。'
+            ) from exc
 
     def _process_thinking_content(
         self,
@@ -198,13 +232,16 @@ class DifyServiceAPIRunner(runner.RequestRunner):
 
         chunk = None  # 初始化chunk变量，防止在没有响应时引用错误
 
-        async for chunk in self.dify_client.chat_messages(
-            inputs=inputs,
-            query=plain_text,
-            user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
-            conversation_id=cov_id,
-            files=files,
-            timeout=120,
+        async for chunk in self._with_total_timeout(
+            self.dify_client.chat_messages(
+                inputs=inputs,
+                query=plain_text,
+                user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
+                conversation_id=cov_id,
+                files=files,
+                timeout=self._request_timeout(),
+            ),
+            operation='Dify chat',
         ):
             self.ap.logger.debug('dify-chat-chunk: ' + str(chunk))
 
@@ -265,14 +302,17 @@ class DifyServiceAPIRunner(runner.RequestRunner):
 
         chunk = None  # 初始化chunk变量，防止在没有响应时引用错误
 
-        async for chunk in self.dify_client.chat_messages(
-            inputs=inputs,
-            query=plain_text,
-            user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
-            response_mode='streaming',
-            conversation_id=cov_id,
-            files=files,
-            timeout=120,
+        async for chunk in self._with_total_timeout(
+            self.dify_client.chat_messages(
+                inputs=inputs,
+                query=plain_text,
+                user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
+                response_mode='streaming',
+                conversation_id=cov_id,
+                files=files,
+                timeout=self._request_timeout(),
+            ),
+            operation='Dify agent',
         ):
             self.ap.logger.debug('dify-agent-chunk: ' + str(chunk))
 
@@ -367,11 +407,14 @@ class DifyServiceAPIRunner(runner.RequestRunner):
 
         inputs.update(query.variables)
 
-        async for chunk in self.dify_client.workflow_run(
-            inputs=inputs,
-            user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
-            files=files,
-            timeout=120,
+        async for chunk in self._with_total_timeout(
+            self.dify_client.workflow_run(
+                inputs=inputs,
+                user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
+                files=files,
+                timeout=self._request_timeout(),
+            ),
+            operation='Dify workflow',
         ):
             self.ap.logger.debug('dify-workflow-chunk: ' + str(chunk))
             if chunk['event'] in ignored_events:
@@ -445,13 +488,16 @@ class DifyServiceAPIRunner(runner.RequestRunner):
 
         remove_think = self.pipeline_config['output'].get('misc', '').get('remove-think')
 
-        async for chunk in self.dify_client.chat_messages(
-            inputs=inputs,
-            query=plain_text,
-            user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
-            conversation_id=cov_id,
-            files=files,
-            timeout=120,
+        async for chunk in self._with_total_timeout(
+            self.dify_client.chat_messages(
+                inputs=inputs,
+                query=plain_text,
+                user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
+                conversation_id=cov_id,
+                files=files,
+                timeout=self._request_timeout(),
+            ),
+            operation='Dify chat',
         ):
             self.ap.logger.debug('dify-chat-chunk: ' + str(chunk))
 
@@ -547,14 +593,17 @@ class DifyServiceAPIRunner(runner.RequestRunner):
 
         remove_think = self.pipeline_config['output'].get('misc', '').get('remove-think')
 
-        async for chunk in self.dify_client.chat_messages(
-            inputs=inputs,
-            query=plain_text,
-            user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
-            response_mode='streaming',
-            conversation_id=cov_id,
-            files=files,
-            timeout=120,
+        async for chunk in self._with_total_timeout(
+            self.dify_client.chat_messages(
+                inputs=inputs,
+                query=plain_text,
+                user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
+                response_mode='streaming',
+                conversation_id=cov_id,
+                files=files,
+                timeout=self._request_timeout(),
+            ),
+            operation='Dify agent',
         ):
             self.ap.logger.debug('dify-agent-chunk: ' + str(chunk))
 
@@ -674,11 +723,14 @@ class DifyServiceAPIRunner(runner.RequestRunner):
         workflow_contents = ''
 
         remove_think = self.pipeline_config['output'].get('misc', '').get('remove-think')
-        async for chunk in self.dify_client.workflow_run(
-            inputs=inputs,
-            user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
-            files=files,
-            timeout=120,
+        async for chunk in self._with_total_timeout(
+            self.dify_client.workflow_run(
+                inputs=inputs,
+                user=f'{query.session.launcher_type.value}_{query.session.launcher_id}',
+                files=files,
+                timeout=self._request_timeout(),
+            ),
+            operation='Dify workflow',
         ):
             self.ap.logger.debug('dify-workflow-chunk: ' + str(chunk))
             if chunk['event'] in ignored_events:
