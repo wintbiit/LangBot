@@ -33,6 +33,35 @@ import langbot_plugin.api.entities.builtin.platform.entities as platform_entitie
 import langbot_plugin.api.definition.abstract.platform.event_logger as abstract_platform_logger
 
 
+_DIAGNOSTIC_SECTION_LABELS = (
+    '依据：',
+    '建议下一步：',
+    '建议：',
+    '可能原因：',
+    '需要补充的信息：',
+    '需关注问题：',
+    '风险：',
+    '补充：',
+)
+
+
+def _format_lark_text_message(text: str) -> str:
+    """Make compact model output readable in Lark cards without changing content."""
+    if not text:
+        return text
+
+    formatted = text.replace('\r\n', '\n').replace('\r', '\n')
+
+    for label in _DIAGNOSTIC_SECTION_LABELS:
+        formatted = re.sub(rf'(?<!^)(?<!\n){re.escape(label)}', f'\n\n{label}', formatted)
+
+    formatted = re.sub(r'(?<=[^\n])(?=\d{1,2}\.(?!\d)[A-Za-z\u4e00-\u9fff])', '\n', formatted)
+    formatted = re.sub(r'(^|\n)(\d{1,2})\.(?=\S)', r'\1\2. ', formatted)
+    formatted = re.sub(r'\n{3,}', '\n\n', formatted)
+
+    return formatted.strip()
+
+
 class AESCipher(object):
     def __init__(self, key):
         self.bs = AES.block_size
@@ -1072,7 +1101,7 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
                     para_text = ''.join(ele.get('text', '') for ele in paragraph)
                     if para_text:
                         parts.append(para_text)
-                final_content = json.dumps({'text': '\n\n'.join(parts)})
+                final_content = json.dumps({'text': _format_lark_text_message('\n\n'.join(parts))})
 
             request: CreateMessageRequest = (
                 CreateMessageRequest.builder()
@@ -1370,7 +1399,7 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
                     para_text = ''.join(ele.get('text', '') for ele in paragraph)
                     if para_text:
                         parts.append(para_text)
-                final_content = json.dumps({'text': '\n\n'.join(parts)})
+                final_content = json.dumps({'text': _format_lark_text_message('\n\n'.join(parts))})
 
             request: ReplyMessageRequest = (
                 ReplyMessageRequest.builder()
@@ -1470,7 +1499,7 @@ class LarkAdapter(abstract_platform_adapter.AbstractMessagePlatformAdapter):
                     para_text = ''.join(ele['text'] for ele in paragraph if ele['tag'] in ('text', 'md'))
                     if para_text:
                         parts.append(para_text)
-                text_message = '\n\n'.join(parts)
+                text_message = _format_lark_text_message('\n\n'.join(parts))
 
             # content = {
             #     'type': 'card_json',
